@@ -59,7 +59,7 @@ def main() -> None:
             "Laptop pack (no internet required)",
             [
                 "Pre-staged Python venv + wheelhouse (offline pip install)",
-                "nexthop-ise-devops scripts from GitHub (MIT)",
+                "ise-audit scripts from GitHub (MIT)",
                 "Local config only — credentials never uploaded",
                 "See docs/AIRGAP.md and docs/RUNBOOK.md in the toolkit",
             ],

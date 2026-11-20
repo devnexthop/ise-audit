@@ -22,8 +22,8 @@ D:\ise-engagements\<customer>-<YYYYMMDD>\
 ## Online box (before you leave)
 
 ```powershell
-git clone https://github.com/devnexthop/nexthop-ise-devops.git
-cd nexthop-ise-devops
+git clone https://github.com/devnexthop/ise-audit.git
+cd ise-audit
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
@@ -35,7 +35,7 @@ pip download -r requirements.txt -d wheelhouse
 ## Air-gapped laptop (on site)
 
 ```powershell
-cd <usb>\nexthop-ise-devops
+cd <usb>\ise-audit
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install --no-index --find-links=wheelhouse -r requirements.txt

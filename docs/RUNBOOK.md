@@ -17,7 +17,7 @@ USB pack is prepared ([AIRGAP.md](AIRGAP.md)).
 ## 2. PowerShell — full run
 
 ```powershell
-cd <path>\nexthop-ise-devops
+cd <path>\ise-audit
 .\.venv\Scripts\Activate.ps1
 
 $out = "D:\ise-engagements\customer-YYYYMMDD"

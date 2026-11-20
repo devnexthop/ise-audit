@@ -1,10 +1,10 @@
-# nexthop-ise-devops — canonical agent rules
+# ise-audit — canonical agent rules
 
 **This file is canonical.** `CLAUDE.md` is only a pointer.
 
-Public-facing Cisco **ISE** toolkit: read-only audit pulls under `audit/`,
-Excel/PDF report builders, air-gap docs under `docs/`, plus `ise_export.py` /
-`ise_import.py` for config management.
+Public GitHub repo: `devnexthop/ise-audit`. Cisco **ISE** toolkit: read-only
+audit pulls under `audit/`, Excel/PDF report builders, air-gap docs under
+`docs/`, plus `ise_export.py` / `ise_import.py` for config management.
 
 ## Configuration and credentials
 
@@ -20,7 +20,7 @@ names, FQDNs, and GUIDs from live deployments.
 
 ## Estate rules
 
-Working tree is `~/gitsync/nexthop-ise-devops`, never a cloud-synced folder.
+Working tree is `~/gitsync/ise-audit` (or this checkout), never a cloud-synced folder.
 
 **Tools** live in this git repo (public GitHub).  
 **Engagement artifacts** (live exports, Excel, PDF, local `config.env`) live on the

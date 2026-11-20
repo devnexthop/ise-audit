@@ -103,7 +103,7 @@ def build_workbook(indir: Path) -> Workbook:
         ["source_dir", str(indir.resolve())],
         ["host", manifest.get("host", "")],
         ["pulled_at_utc", manifest.get("timestamp", "")],
-        ["generator", "nexthop-ise-devops audit/report_excel.py"],
+        ["generator", "ise-audit audit/report_excel.py"],
     ]
 
     openapi = manifest.get("openapi") or {}

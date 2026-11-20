@@ -50,8 +50,8 @@ cross-reference** — including on an **air-gapped** laptop (no internet / no AI
 ## Install (online laptop)
 
 ```powershell
-git clone https://github.com/devnexthop/nexthop-ise-devops.git
-cd nexthop-ise-devops
+git clone https://github.com/devnexthop/ise-audit.git
+cd ise-audit
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
@@ -65,7 +65,7 @@ Air-gap / USB pack: [`docs/AIRGAP.md`](docs/AIRGAP.md).
 Reads only (HTTP **GET**). Does **not** change ISE.
 
 ```powershell
-cd C:\path\to\nexthop-ise-devops
+cd C:\path\to\ise-audit
 .\.venv\Scripts\Activate.ps1
 
 # Engagement folder OUTSIDE git (USB or local scratch)
@@ -156,7 +156,7 @@ python ise_import.py C:\path\to\export.json
 ## Repository layout
 
 ```text
-nexthop-ise-devops/
+ise-audit/
 ├── audit/
 │   ├── pull_ise_inventory.py    # primary GET inventory
 │   ├── report_policy_xlsx.py    # RADIUS+TACACS Excel
