@@ -11,8 +11,8 @@ identity-group names.
 | Requirement | Notes |
 |---|---|
 | PowerShell 5.1+ (Windows) or PowerShell 7+ | Native `Invoke-WebRequest` |
-| Python 3.7+ + `requests` | For `ise_policy_export.py` |
-| ISE ERS (Read) and/or OpenAPI enabled | Admin → System → Settings → API Settings |
+| Python 3.12+ + `requirements.txt` | `ciscoisesdk`, `requests`, Excel/PDF libs |
+| ISE API Gateway + OpenAPI (ERS for `*.ps1`) | Admin → System → Settings → API Settings |
 | Account with API RBAC | ERS Admin or Super Admin |
 
 Scripts accept self-signed PAN certificates (lab-friendly). Prefer proper TLS
@@ -21,19 +21,67 @@ validation in production when you can.
 ## Recommended order
 
 ```text
-1. ers_diag.ps1              # which port / URL shape works?
-2. ise_policy_export.py      # policy sets (OpenAPI) → CSV + JSON
-3. pull_ise_objects.ps1      # dACLs, endpoint groups, ID sequences, NDGs
-4. fetch_auth_profiles.ps1   # full authorization-profile bodies
-5. pull_policy_meta.ps1      # condition libraries + dictionaries
-6. pull_profiling.ps1        # profiler name↔id index + logical profiles
-7. resolve_profiling_guids.ps1  # map EndPointPolicy GUIDs from your CSV
+1. sdk_smoke.py              # optional ciscoisesdk connectivity check
+2. pull_ise_inventory.py     # FULL GET inventory (OpenAPI + ERS)
+3. report_policy_xlsx.py     # RADIUS + TACACS policy cross-reference Excel (primary)
+4. report_pdf.py             # optional PDF summary
+5. ers_diag.ps1 + pull_*.ps1 # optional classic PowerShell ERS collectors
 ```
 
-Run each script from a **working directory outside this repo** (or a gitignored
-`workdir/`) so JSON lands somewhere you will not accidentally `git add`.
+### One-shot (PowerShell)
+
+```powershell
+$out = "D:\ise-engagements\job"
+$env:ISE_HOST = "ise-pan.example.com"
+$env:ISE_USER = "apiadmin"
+$env:ISE_PASS = "********"
+
+python pull_ise_inventory.py --outdir "$out\raw\inventory" --insecure
+python report_policy_xlsx.py --indir "$out\raw\inventory" `
+  --outfile "$out\reports\ISE_Policies_RADIUS_TACACS.xlsx" --customer "Acme"
+```
+
+**OpenAPI** → ISE servers, RADIUS/TACACS policy (full AuthN/AuthZ + conditions),
+identity stores, SGTs, dictionaries.  
+**ERS** → network devices, device/identity/endpoint groups, dACL bodies, AuthZ
+profile bodies. Internal users are **sampled** on large estates (not 25k by-id GETs).
+
+Always use `--outdir` / `--outfile` outside this repo. See [`docs/AIRGAP.md`](../docs/AIRGAP.md)
+and the root [`README.md`](../README.md).
 
 ## Scripts
+
+### `pull_ise_inventory.py`
+
+Primary **GET-only** collector (custom `requests`, not SDK-driven). Writes OpenAPI
++ ERS artifacts under `--outdir` plus `manifest.json`.
+
+### `report_policy_xlsx.py`
+
+Primary customer Excel: RADIUS + TACACS sheets
+(Authentication, Authorization with condition→profile→dACL→effective access,
+Profiles, dACLs, inventory tabs).
+
+### `sdk_smoke.py`
+
+Optional `ciscoisesdk` checks. Treats HTTP 200 + login HTML as failure.
+
+```powershell
+python sdk_smoke.py --outdir D:\ise-engagements\job\raw --insecure
+```
+
+### `enable_api_services.py`
+
+Shows `/admin/API/apiService/get`. With `--enable`, **writes** to ISE (change control).
+
+### `report_excel.py` / `report_pdf.py`
+
+Alternate/legacy inventory Excel and PDF summary from `--indir`.
+
+```powershell
+python report_excel.py --indir D:\job\raw\inventory --outfile D:\job\reports\ise_audit.xlsx
+python report_pdf.py --indir D:\job\raw\inventory --outfile D:\job\reports\ise_audit.pdf --customer "Acme"
+```
 
 ### `ers_diag.ps1`
 

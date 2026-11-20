@@ -1,87 +1,181 @@
 # Cisco ISE DevOps + Audit Toolkit
 
-Public collection of **read-only** Cisco ISE helpers used for assessments and
-config management. Credentials are never committed; script output is customer
-data and must stay local.
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
+Public **read-only** Cisco ISE assessment toolkit from [NextHop](https://nexthopllc.com).
+
+Pull **RADIUS + TACACS** policy (full AuthN/AuthZ + conditions), inventory (nodes,
+devices, groups, stores), then build an engagement-style **Excel policy
+cross-reference** — including on an **air-gapped** laptop (no internet / no AI on site).
 
 | Area | What |
 |---|---|
-| [`audit/`](audit/) | Assessment pull scripts (PowerShell + OpenAPI policy export) |
-| Root `ise_export.py` / `ise_import.py` | Broader ERS export/import tooling |
+| [`audit/pull_ise_inventory.py`](audit/pull_ise_inventory.py) | **Primary** GET-only OpenAPI + ERS inventory |
+| [`audit/report_policy_xlsx.py`](audit/report_policy_xlsx.py) | RADIUS + TACACS policy cross-reference Excel |
+| [`audit/*.ps1`](audit/) | Classic PowerShell ERS collectors |
+| [`docs/RUNBOOK.md`](docs/RUNBOOK.md) | Operator steps |
+| [`docs/AIRGAP.md`](docs/AIRGAP.md) | USB / offline wheelhouse |
 
-Start with the [audit workflow](audit/README.md) if you are documenting an
-existing ISE deployment.
+**License:** MIT — see [LICENSE](LICENSE) and [NOTICE](NOTICE).  
+**Customer exports** (JSON/CSV/XLSX/PDF) are engagement data — **not** open source.
 
-## Security rules (read before cloning into a shared tree)
+## Security rules
 
-1. **Do not commit exports.** JSON/CSV from these scripts contains policy names,
-   dACLs, identity groups, and sometimes hostnames.
-2. **`customer_config.py` is gitignored.** Copy from `customer_config_example.py`.
-3. **No real customer hostnames or passwords** in examples, comments, or docs.
-4. Run pulls from a directory **outside** the git working tree when possible.
+1. Do **not** commit exports (policy names, dACLs, groups, hostnames).
+2. `customer_config.py` is gitignored — copy from `customer_config_example.py`.
+3. No real customer hostnames/passwords in examples or docs.
+4. Always set `--outdir` / `--outfile` **outside** this git tree.
 
 ## Prerequisites
 
-- Python 3.7+
-- Cisco ISE with ERS and/or OpenAPI enabled
-- PowerShell 5.1+ for the `audit/*.ps1` scripts (Windows or PowerShell 7)
+| Requirement | Notes |
+|---|---|
+| Python **3.12+** | 3.13 tested |
+| ISE API Gateway | On (TCP 443) |
+| OpenAPI | On — needed for RADIUS/TACACS policy |
+| ERS | On — needed for devices, groups, dACL/profile bodies |
+| API account | Super Admin or ERS Admin / Operator |
+| PowerShell 5.1+ | Optional; for `audit/*.ps1` |
 
-```bash
+### Enable APIs on ISE (GUI — change control)
+
+**Administration → System → Settings → API Settings**
+
+1. Enable **API Gateway** on the PAN  
+2. Enable **OpenAPI** (Read/Write on PAN)  
+3. Enable **ERS** (Read/Write on PAN)  
+4. Prefer CSRF disabled for read-only audit clients unless you know the token flow  
+
+## Install (online laptop)
+
+```powershell
 git clone https://github.com/devnexthop/nexthop-ise-devops.git
 cd nexthop-ise-devops
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
 pip install -r requirements.txt
-cp customer_config_example.py customer_config.py   # edit locally; never commit
 ```
 
-## Audit scripts (quick start)
+Air-gap / USB pack: [`docs/AIRGAP.md`](docs/AIRGAP.md).
+
+## How to run (PowerShell) — recommended
+
+Reads only (HTTP **GET**). Does **not** change ISE.
+
+```powershell
+cd C:\path\to\nexthop-ise-devops
+.\.venv\Scripts\Activate.ps1
+
+# Engagement folder OUTSIDE git (USB or local scratch)
+$out = "D:\ise-engagements\customer-YYYYMMDD"
+New-Item -ItemType Directory -Force -Path "$out\raw\inventory","$out\reports" | Out-Null
+
+$env:ISE_HOST = "ise-pan.example.com"   # FQDN or IP, no https://
+$env:ISE_USER = "apiadmin"
+$env:ISE_PASS = "********"              # or prompt — do not commit
+
+# Optional connectivity check (ciscoisesdk)
+python audit\sdk_smoke.py --outdir "$out\raw" --insecure
+
+# Full inventory: OpenAPI policy + ERS devices/groups/profiles/dACLs
+python audit\pull_ise_inventory.py --outdir "$out\raw\inventory" --insecure
+
+# Policy cross-reference Excel: RADIUS + TACACS + inventory sheets
+python audit\report_policy_xlsx.py `
+  --indir  "$out\raw\inventory" `
+  --outfile "$out\reports\ISE_Policies_RADIUS_TACACS.xlsx" `
+  --customer "Customer Name"
+
+# Optional PDF summary
+python audit\report_pdf.py `
+  --indir "$out\raw\inventory" `
+  --outfile "$out\reports\ise_audit.pdf" `
+  --customer "Customer Name"
+```
+
+Use `--insecure` only for lab / self-signed PAN certificates. Drop it when the
+PAN presents a trusted cert.
+
+### What the Excel contains
+
+| Sheet group | Contents |
+|---|---|
+| **RADIUS** | Authentication, Authorization (condition→profile→dACL→effective access), Profiles, dACLs, Conditions |
+| **TACACS** | Authentication, Authorization, Command Sets, Conditions |
+| **Inventory** | ISE servers, network devices, device groups, identity groups, stores, SGTs, … |
+| **Findings** | Lightweight hygiene notes (engineer still reviews) |
+
+Internal users on huge estates (10k+) are sampled by default — not every user body.
+
+## API surface (what we call)
+
+Custom Python (`requests`) — **not** dependent on ciscoisesdk for the audit path.
+
+| API | Examples | Used for |
+|---|---|---|
+| **OpenAPI** `/api/v1/...` | `policy/network-access/policy-set/.../authentication\|authorization`, `policy/device-admin/...`, `deployment/node`, conditions, dictionaries | RADIUS + TACACS policy detail |
+| **ERS** `/ers/config/...` | `networkdevice`, `networkdevicegroup`, `identitygroup`, `authorizationprofile/{id}`, `downloadableacl/{id}`, … | Devices, groups, profile/dACL bodies |
+
+Docs: [Cisco ISE API (DevNet)](https://developer.cisco.com/docs/identity-services-engine/latest/).
+
+## PowerShell ERS collectors (optional)
+
+Same ERS objects as the Python inventory, classic script style:
 
 ```powershell
 cd audit
 powershell -ExecutionPolicy Bypass -File .\ers_diag.ps1 -Pan ise-pan.example.com
 powershell -ExecutionPolicy Bypass -File .\pull_ise_objects.ps1 -Pan ise-pan.example.com
+powershell -ExecutionPolicy Bypass -File .\fetch_auth_profiles.ps1 -Pan ise-pan.example.com
 ```
 
-```bash
-cd audit
-export ISE_HOST=ise-pan.example.com ISE_USER=apiadmin
-python3 ise_policy_export.py --outdir /tmp/ise_export --insecure
+Run these from an engagement working directory so JSON does not land in git.
+
+## Optional: enable API services via script
+
+**Writes to ISE** — only with change approval:
+
+```powershell
+python audit\enable_api_services.py --host $env:ISE_HOST --insecure          # show
+python audit\enable_api_services.py --host $env:ISE_HOST --insecure --enable # change
 ```
 
-Full explanations: [`audit/README.md`](audit/README.md).
+## Config export / import (separate tools)
 
-## Config export / import
-
-```bash
-cp customer_config_example.py customer_config.py
-# edit ise_nodes hostnames/credentials locally
+```powershell
+copy customer_config_example.py customer_config.py
+# edit locally — never commit
 python ise_export.py
-python ise_import.py /path/to/export.json
+python ise_import.py C:\path\to\export.json
 ```
-
-See comments in `customer_config_example.py` for knobs (what to export, logging,
-backup directory).
 
 ## Repository layout
 
 ```text
 nexthop-ise-devops/
-├── audit/                      # ISE assessment / documentation pulls
-│   ├── README.md               # workflow + per-script docs
-│   ├── ers_diag.ps1
-│   ├── pull_ise_objects.ps1
-│   ├── pull_policy_meta.ps1
-│   ├── pull_profiling.ps1
-│   ├── fetch_auth_profiles.ps1
-│   ├── resolve_profiling_guids.ps1
-│   ├── ise_policy_export.py
-│   └── examples/
-├── ise_export.py               # multi-node ERS export
-├── ise_import.py               # multi-node ERS import
-├── customer_config_example.py  # template only
+├── audit/
+│   ├── pull_ise_inventory.py    # primary GET inventory
+│   ├── report_policy_xlsx.py    # RADIUS+TACACS Excel
+│   ├── report_excel.py / report_pdf.py / sdk_smoke.py
+│   ├── enable_api_services.py   # optional WRITE
+│   ├── ise_common.py
+│   ├── ise_policy_export.py     # legacy OpenAPI CSV export
+│   └── *.ps1                    # ERS PowerShell collectors
+├── docs/                        # RUNBOOK, AIRGAP, kickoff PPT
+├── ise_export.py / ise_import.py
+├── customer_config_example.py
 ├── requirements.txt
+├── LICENSE / NOTICE / SECURITY.md / CONTRIBUTING.md
 └── README.md
 ```
 
+## References
+
+- [Cisco ISE API docs](https://developer.cisco.com/docs/identity-services-engine/latest/)
+- [ciscoisesdk (PyPI)](https://pypi.org/project/ciscoisesdk/) — optional smoke only
+- [ISE DevNet hub](https://developer.cisco.com/identity-services-engine/)
+
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE). Third-party: [NOTICE](NOTICE).

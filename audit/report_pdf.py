@@ -1,0 +1,179 @@
+#!/usr/bin/env python3
+"""
+report_pdf.py — Build a simple PDF audit summary from ISE export CSV/JSON.
+
+Offline-friendly; no ISE connection required.
+
+Usage:
+  python report_pdf.py --indir ./outdir/policy --outfile ./outdir/ise_audit.pdf
+"""
+from __future__ import annotations
+
+import argparse
+import csv
+import json
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+try:
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.lib.units import inch
+    from reportlab.platypus import (
+        Paragraph,
+        SimpleDocTemplate,
+        Spacer,
+        Table,
+        TableStyle,
+    )
+except ImportError:
+    sys.exit("reportlab required: pip install reportlab")
+
+
+def _read_csv_rows(path: Path, limit: int = 40) -> list[list[str]]:
+    if not path.is_file():
+        return [["(missing)", str(path)]]
+    rows: list[list[str]] = []
+    with path.open(newline="", encoding="utf-8") as f:
+        for i, row in enumerate(csv.reader(f)):
+            rows.append([c[:80] for c in row])
+            if i >= limit:
+                rows.append(["…", f"(truncated after {limit} data rows)"])
+                break
+    return rows
+
+
+def _count_json_list(path: Path) -> int:
+    if not path.is_file():
+        return 0
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if isinstance(data, dict) and "response" in data:
+        return len(data["response"] or [])
+    if isinstance(data, list):
+        return len(data)
+    return 0
+
+
+def build_pdf(indir: Path, outfile: Path, customer: str) -> None:
+    if not (indir / "network-access_policy.csv").is_file() and (indir / "policy").is_dir():
+        indir = indir / "policy"
+
+    doc = SimpleDocTemplate(
+        str(outfile),
+        pagesize=letter,
+        leftMargin=0.75 * inch,
+        rightMargin=0.75 * inch,
+        topMargin=0.75 * inch,
+        bottomMargin=0.75 * inch,
+    )
+    styles = getSampleStyleSheet()
+    story = []
+
+    story.append(Paragraph("Cisco ISE Audit Summary", styles["Title"]))
+    story.append(Paragraph(f"Customer / engagement: {customer}", styles["Normal"]))
+    story.append(
+        Paragraph(
+            f"Generated (UTC): {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}",
+            styles["Normal"],
+        )
+    )
+    story.append(
+        Paragraph(
+            "Read-only export. Do not commit this PDF to public git — it contains policy names.",
+            styles["Italic"],
+        )
+    )
+    story.append(Spacer(1, 0.25 * inch))
+
+    na = indir / "network-access_policy.csv"
+    da = indir / "device-admin_policy.csv"
+    prof_count = _count_json_list(indir / "authorization_profiles.json")
+    cond_count = _count_json_list(indir / "conditions.json")
+
+    inventory = [
+        ["Object", "Count / status"],
+        ["Network-access policy CSV", "present" if na.is_file() else "missing"],
+        ["Device-admin policy CSV", "present" if da.is_file() else "missing"],
+        ["Authorization profiles", str(prof_count)],
+        ["Conditions", str(cond_count)],
+    ]
+    t = Table(inventory, colWidths=[3.2 * inch, 3.2 * inch])
+    t.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1f4e79")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.lightgrey]),
+            ]
+        )
+    )
+    story.append(Paragraph("Inventory", styles["Heading2"]))
+    story.append(t)
+    story.append(Spacer(1, 0.3 * inch))
+
+    story.append(Paragraph("Network Access Policy (sample)", styles["Heading2"]))
+    na_rows = _read_csv_rows(na, limit=25)
+    nt = Table(na_rows, repeatRows=1, colWidths=[1.1 * inch] * min(6, max(len(r) for r in na_rows)))
+    nt.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2e75b6")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTSIZE", (0, 0), (-1, -1), 7),
+                ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
+            ]
+        )
+    )
+    story.append(nt)
+    story.append(Spacer(1, 0.3 * inch))
+
+    story.append(Paragraph("Device Admin Policy (sample)", styles["Heading2"]))
+    da_rows = _read_csv_rows(da, limit=15)
+    dt = Table(da_rows, repeatRows=1)
+    dt.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2e75b6")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTSIZE", (0, 0), (-1, -1), 7),
+                ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
+            ]
+        )
+    )
+    story.append(dt)
+
+    story.append(Spacer(1, 0.4 * inch))
+    story.append(
+        Paragraph(
+            "Generated by nexthop-ise-devops (MIT). Tools are open source; "
+            "this report content belongs to the engagement customer.",
+            styles["Normal"],
+        )
+    )
+
+    doc.build(story)
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description="Build PDF audit summary from export files.")
+    ap.add_argument("--indir", required=True)
+    ap.add_argument("--outfile", default="./outdir/ise_audit.pdf")
+    ap.add_argument("--customer", default="ISE engagement")
+    args = ap.parse_args()
+
+    indir = Path(args.indir)
+    if not indir.is_dir():
+        sys.exit(f"Not a directory: {indir}")
+    outfile = Path(args.outfile)
+    outfile.parent.mkdir(parents=True, exist_ok=True)
+    build_pdf(indir, outfile, args.customer)
+    print(f"Wrote {outfile}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
