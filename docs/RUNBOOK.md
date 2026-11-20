@@ -27,7 +27,8 @@ $env:ISE_HOST = "ise-pan.example.com"
 $env:ISE_USER = "apiadmin"
 $env:ISE_PASS = "********"
 
-python audit\sdk_smoke.py --outdir "$out\raw" --insecure
+python audit\connectivity_check.py --insecure
+# Fix any [FAIL] in ISE GUI (API Gateway / OpenAPI / ERS) before continuing
 python audit\pull_ise_inventory.py --outdir "$out\raw\inventory" --insecure
 python audit\report_policy_xlsx.py `
   --indir "$out\raw\inventory" `

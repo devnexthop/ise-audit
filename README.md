@@ -10,6 +10,7 @@ cross-reference** — including on an **air-gapped** laptop (no internet / no AI
 
 | Area | What |
 |---|---|
+| [`audit/connectivity_check.py`](audit/connectivity_check.py) | Preflight: host/user/pass → checklist (Gateway/OpenAPI/ERS) |
 | [`audit/pull_ise_inventory.py`](audit/pull_ise_inventory.py) | **Primary** GET-only OpenAPI + ERS inventory |
 | [`audit/report_policy_xlsx.py`](audit/report_policy_xlsx.py) | RADIUS + TACACS policy cross-reference Excel |
 | [`audit/*.ps1`](audit/) | Classic PowerShell ERS collectors |
@@ -75,8 +76,10 @@ $env:ISE_HOST = "ise-pan.example.com"   # FQDN or IP, no https://
 $env:ISE_USER = "apiadmin"
 $env:ISE_PASS = "********"              # or prompt — do not commit
 
-# Optional connectivity check (ciscoisesdk)
-python audit\sdk_smoke.py --outdir "$out\raw" --insecure
+# Preflight checklist (prompts for host/user/pass if not set)
+python audit\connectivity_check.py --insecure
+# or non-interactive:
+# python audit\connectivity_check.py --host $env:ISE_HOST --user $env:ISE_USER --insecure
 
 # Full inventory: OpenAPI policy + ERS devices/groups/profiles/dACLs
 python audit\pull_ise_inventory.py --outdir "$out\raw\inventory" --insecure

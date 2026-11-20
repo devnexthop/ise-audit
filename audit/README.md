@@ -21,7 +21,7 @@ validation in production when you can.
 ## Recommended order
 
 ```text
-1. sdk_smoke.py              # optional ciscoisesdk connectivity check
+1. connectivity_check.py     # enter host/user/pass — checklist all API boxes
 2. pull_ise_inventory.py     # FULL GET inventory (OpenAPI + ERS)
 3. report_policy_xlsx.py     # RADIUS + TACACS policy cross-reference Excel (primary)
 4. report_pdf.py             # optional PDF summary
@@ -36,9 +36,21 @@ $env:ISE_HOST = "ise-pan.example.com"
 $env:ISE_USER = "apiadmin"
 $env:ISE_PASS = "********"
 
+python connectivity_check.py --insecure
 python pull_ise_inventory.py --outdir "$out\raw\inventory" --insecure
 python report_policy_xlsx.py --indir "$out\raw\inventory" `
   --outfile "$out\reports\ISE_Policies_RADIUS_TACACS.xlsx" --customer "Acme"
+```
+
+### `connectivity_check.py`
+
+Interactive (or `--host` / `--user` / `--password` / env) preflight. Prints `[OK]` /
+`[FAIL]` for: TCP 443, API Gateway, OpenAPI, RADIUS policy API, TACACS policy API,
+ERS. Exit code `0` only when required boxes pass.
+
+```powershell
+python connectivity_check.py --insecure
+python connectivity_check.py --host ise-pan.example.com --user apiadmin --insecure
 ```
 
 **OpenAPI** → ISE servers, RADIUS/TACACS policy (full AuthN/AuthZ + conditions),
